@@ -68,6 +68,18 @@ const server = http.createServer(async (req, res) => {
 
 async function main() {
   await bot.init();
+
+  // Разовый авто-поиск sitekey капчи: задай FIND_SITEKEY=1 в окружении,
+  // результат появится в Logs. После находки переменную можно убрать.
+  if (process.env.FIND_SITEKEY) {
+    try {
+      const { findSitekey } = await import('../scripts/find-sitekey.js');
+      await findSitekey();
+    } catch (e) {
+      console.error('[find-sitekey]', e.message);
+    }
+  }
+
   await startBridge(); // поднять сохранённые MAX-сессии после рестарта
 
   server.listen(config.port, () => {

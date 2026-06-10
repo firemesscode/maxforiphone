@@ -30,6 +30,10 @@ function findKeys(text) {
   return [...found];
 }
 
+export async function findSitekey() {
+  return main();
+}
+
 async function main() {
   console.log(`Качаю ${BASE} …`);
   const html = await get(BASE);
@@ -70,7 +74,10 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error('Ошибка:', e.message);
-  process.exit(1);
-});
+// Прямой запуск из CLI: node scripts/find-sitekey.js
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((e) => {
+    console.error('Ошибка:', e.message);
+    process.exit(1);
+  });
+}
