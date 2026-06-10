@@ -1,0 +1,20 @@
+{
+  "name": "maxforiphone",
+  "version": "1.0.0",
+  "description": "Мост между мессенджером MAX и Telegram-ботом: вся переписка MAX приходит прямо в чат с ботом, авторизация — внутри чата.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "set-webhook": "node scripts/set-webhook.js"
+  },
+  "dependencies": {
+    "grammy": "^1.30.0",
+    "ws": "^8.18.0",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
