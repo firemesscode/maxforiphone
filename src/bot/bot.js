@@ -111,20 +111,35 @@ bot.on('message:text', async (ctx) => {
 
   const session = store.get(chatId) || {};
 
-  // Шаг 1 — ввод телефона. MAX требует пройти капчу перед выдачей кода,
-  // поэтому вместо прямого запроса даём ссылку на страницу с капчей.
+  // Шаг 1 — ввод телефона. Пытаемся сразу запросить код (рабочий протокол
+  // капчу не требует). Только если MAX вернёт captcha.* — даём ссылку на капчу.
   if (session.state === 'awaiting_phone') {
     const phone = text.replace(/[^\d+]/g, '');
     if (!/^\+?\d{10,15}$/.test(phone)) {
       return ctx.reply('Похоже на некорректный номер. Пример: +79991234567');
     }
-    const sid = crypto.randomBytes(12).toString('hex');
-    captchaSessions.set(sid, { chatId, phone });
-    store.update(chatId, { state: 'awaiting_captcha', phone });
-    const url = `${config.webhookUrl}/captcha?sid=${sid}`;
-    await ctx.reply(
-      `Открой ссылку и пройди проверку (капчу). После неё MAX пришлёт код, и ты введёшь его здесь:\n${url}`,
-    );
+    await ctx.reply('Подключаюсь к MAX и запрашиваю код…');
+    try {
+      const client = new MaxClient();
+      await client.connect();
+      const tempToken = await client.requestCode(phone);
+      pendingAuth.set(chatId, { client, tempToken, phone });
+      store.update(chatId, { state: 'awaiting_code', phone });
+      await ctx.reply('MAX отправил код (в приложение MAX или по SMS). Пришлите его сюда — только цифры.');
+    } catch (err) {
+      if (String(err.message).startsWith('captcha')) {
+        // Фолбэк: MAX всё же требует капчу — даём страницу.
+        const sid = crypto.randomBytes(12).toString('hex');
+        captchaSessions.set(sid, { chatId, phone });
+        store.update(chatId, { state: 'awaiting_captcha', phone });
+        await ctx.reply(
+          `Нужна проверка. Открой ссылку, пройди капчу, потом введи код здесь:\n${config.webhookUrl}/captcha?sid=${sid}`,
+        );
+      } else {
+        store.update(chatId, { state: 'idle' });
+        await ctx.reply(`Не удалось запросить код: ${err.message}. Попробуйте /login снова.`);
+      }
+    }
     return;
   }
 
