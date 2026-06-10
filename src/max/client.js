@@ -30,9 +30,14 @@ const OPCODES = {
 };
 
 export class MaxClient extends EventEmitter {
-  constructor({ token = null } = {}) {
+  constructor({ token = null, deviceId = null } = {}) {
     super();
     this.token = token;
+    // Стабильный идентификатор устройства; можно зафиксировать через MAX_DEVICE_ID.
+    this.deviceId =
+      deviceId ||
+      process.env.MAX_DEVICE_ID ||
+      'maxtg-' + Math.random().toString(36).slice(2, 14);
     this.ws = null;
     this.seq = 0;
     this.pending = new Map(); // seq -> { resolve, reject }
@@ -43,7 +48,8 @@ export class MaxClient extends EventEmitter {
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(config.maxWsUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 MAX-Web',
+          'User-Agent':
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
           Origin: 'https://web.max.ru',
         },
       });
@@ -88,7 +94,8 @@ export class MaxClient extends EventEmitter {
   async confirmCode(tempToken, code) {
     const res = await this._request(OPCODES.CONFIRM_CODE, {
       token: tempToken,
-      code,
+      verifyCode: String(code),
+      authTokenType: 'CHECK_CODE',
     });
     this.token = res.tokenAttrs?.LOGIN?.token || res.token;
     return this.token;
@@ -110,18 +117,34 @@ export class MaxClient extends EventEmitter {
   // ---- внутреннее ----
 
   _handshake() {
+    // Полный userAgent как у веб-клиента — иначе MAX считает нас ботом и требует капчу.
     return this._request(OPCODES.HANDSHAKE, {
       userAgent: {
         deviceType: 'WEB',
-        appVersion: '25.6.0',
         locale: 'ru',
+        deviceLocale: 'ru',
+        osVersion: 'Linux',
+        deviceName: 'Chrome',
+        headerUserAgent:
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+        appVersion: '25.6.0',
+        screen: '1080x1920 1.0x',
+        timezone: 'Europe/Moscow',
       },
-      deviceId: 'max-tg-bridge',
+      deviceId: this.deviceId,
     });
   }
 
   _authByToken(token) {
-    return this._request(OPCODES.AUTH_TOKEN, { token, interactive: true });
+    return this._request(OPCODES.AUTH_TOKEN, {
+      interactive: true,
+      token,
+      chatsCount: 40,
+      chatsSync: 0,
+      contactsSync: 0,
+      presenceSync: -1,
+      draftsSync: 0,
+    });
   }
 
   _request(opcode, payload) {
