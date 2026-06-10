@@ -1,6 +1,6 @@
 import { webhookCallback } from 'grammy';
 import http from 'node:http';
-import { config, webhookPath } from './config.js';
+import { config } from './config.js';
 import { bot, startBridge } from './bot/bot.js';
 
 // grammY превращает входящий апдейт Telegram в вызов наших обработчиков.
@@ -13,7 +13,9 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200).end('MAX↔Telegram bridge is running');
     return;
   }
-  if (req.method === 'POST' && req.url === webhookPath) {
+  // Единый путь вебхука и для Render (этот сервер), и для Vercel (api/webhook.js).
+  const path = (req.url || '').split('?')[0];
+  if (req.method === 'POST' && path === '/api/webhook') {
     try {
       await handleUpdate(req, res);
     } catch (err) {
@@ -31,7 +33,7 @@ async function main() {
 
   server.listen(config.port, () => {
     console.log(`[server] слушаю порт ${config.port}`);
-    console.log(`[server] webhook path: ${webhookPath}`);
+    console.log('[server] webhook path: /api/webhook');
     console.log(`[bot] @${bot.botInfo.username} готов`);
     console.log('\nЗапусти `npm run set-webhook`, чтобы прописать вебхук в Telegram.');
   });
