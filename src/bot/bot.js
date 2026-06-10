@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Bot } from 'grammy';
 import { config } from '../config.js';
 import { store } from '../store.js';
@@ -8,6 +9,9 @@ export const bot = new Bot(config.botToken);
 
 // Временные MAX-клиенты на время ввода SMS-кода (ещё нет постоянного токена).
 const pendingAuth = new Map(); // chatId -> { client, tempToken, phone }
+
+// Сессии прохождения капчи: sid -> { chatId, phone }. Живут до завершения входа.
+const captchaSessions = new Map();
 
 // Менеджер постоянных соединений. Входящие из MAX -> в Telegram-чат.
 const manager = new MaxManager({
@@ -27,6 +31,35 @@ const manager = new MaxManager({
 
 export async function startBridge() {
   await manager.restoreAll();
+}
+
+// Существует ли ещё сессия капчи с таким sid (для рендера страницы).
+export function captchaSessionExists(sid) {
+  return captchaSessions.has(sid);
+}
+
+/**
+ * Вызывается HTTP-страницей после прохождения капчи.
+ * Получает токен капчи, запрашивает у MAX код и переводит чат в ожидание кода.
+ * Возвращает { ok } или { ok:false, error } — страница покажет результат.
+ */
+export async function completeCaptcha(sid, captchaToken) {
+  const sess = captchaSessions.get(sid);
+  if (!sess) return { ok: false, error: 'Сессия входа не найдена или устарела. Сделайте /login заново.' };
+  const { chatId, phone } = sess;
+  try {
+    const client = new MaxClient();
+    await client.connect();
+    const tempToken = await client.requestCode(phone, captchaToken);
+    pendingAuth.set(chatId, { client, tempToken, phone });
+    captchaSessions.delete(sid);
+    store.update(chatId, { state: 'awaiting_code' });
+    await bot.api.sendMessage(chatId, 'Проверка пройдена ✅ MAX отправил код. Пришлите его сюда (только цифры).');
+    return { ok: true };
+  } catch (err) {
+    await bot.api.sendMessage(chatId, `Не удалось запросить код: ${err.message}. Сделайте /login снова.`);
+    return { ok: false, error: err.message };
+  }
 }
 
 // ---------- команды ----------
@@ -78,24 +111,20 @@ bot.on('message:text', async (ctx) => {
 
   const session = store.get(chatId) || {};
 
-  // Шаг 1 — ввод телефона
+  // Шаг 1 — ввод телефона. MAX требует пройти капчу перед выдачей кода,
+  // поэтому вместо прямого запроса даём ссылку на страницу с капчей.
   if (session.state === 'awaiting_phone') {
     const phone = text.replace(/[^\d+]/g, '');
     if (!/^\+?\d{10,15}$/.test(phone)) {
       return ctx.reply('Похоже на некорректный номер. Пример: +79991234567');
     }
-    await ctx.reply('Подключаюсь к MAX и запрашиваю код…');
-    try {
-      const client = new MaxClient();
-      await client.connect();
-      const tempToken = await client.requestCode(phone);
-      pendingAuth.set(chatId, { client, tempToken, phone });
-      store.update(chatId, { state: 'awaiting_code', phone });
-      await ctx.reply('MAX прислал SMS с кодом. Отправьте код сюда (только цифры).');
-    } catch (err) {
-      store.update(chatId, { state: 'idle' });
-      await ctx.reply(`Не удалось запросить код: ${err.message}. Попробуйте /login снова.`);
-    }
+    const sid = crypto.randomBytes(12).toString('hex');
+    captchaSessions.set(sid, { chatId, phone });
+    store.update(chatId, { state: 'awaiting_captcha', phone });
+    const url = `${config.webhookUrl}/captcha?sid=${sid}`;
+    await ctx.reply(
+      `Открой ссылку и пройди проверку (капчу). После неё MAX пришлёт код, и ты введёшь его здесь:\n${url}`,
+    );
     return;
   }
 

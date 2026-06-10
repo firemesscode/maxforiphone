@@ -75,12 +75,12 @@ export class MaxClient extends EventEmitter {
   // ---- публичный API авторизации ----
 
   /** Запросить SMS-код. Возвращает токен-черновик (temp_token) для подтверждения. */
-  async requestCode(phone) {
-    const res = await this._request(OPCODES.REQUEST_CODE, {
-      phone,
-      type: 'START_AUTH',
-      language: 'ru',
-    });
+  async requestCode(phone, captchaToken) {
+    const payload = { phone, type: 'START_AUTH', language: 'ru' };
+    // Имя поля с токеном капчи можно переопределить через MAX_CAPTCHA_FIELD,
+    // если MAX ждёт его под другим ключом (увидим по ответу сервера).
+    if (captchaToken) payload[process.env.MAX_CAPTCHA_FIELD || 'captcha'] = captchaToken;
+    const res = await this._request(OPCODES.REQUEST_CODE, payload);
     return res.token; // временный токен, нужен на шаге confirmCode
   }
 

@@ -22,6 +22,9 @@ export const config = {
     process.env.WEBHOOK_SECRET ||
     crypto.createHash('sha256').update(required('BOT_TOKEN')).digest('hex').slice(0, 32),
   maxWsUrl: process.env.MAX_WS_URL || 'wss://ws-api.oneme.ru/websocket',
+  // Ключ капчи (Yandex SmartCaptcha), который использует web.max.ru.
+  // Берётся со страницы входа web.max.ru (DevTools → элемент капчи, data-sitekey).
+  captchaSitekey: process.env.MAX_CAPTCHA_SITEKEY || '',
   sessionsFile: process.env.SESSIONS_FILE || './data/sessions.json',
 };
 

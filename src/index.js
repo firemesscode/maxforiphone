@@ -1,7 +1,22 @@
 import { webhookCallback } from 'grammy';
 import http from 'node:http';
 import { config } from './config.js';
-import { bot, startBridge } from './bot/bot.js';
+import { bot, startBridge, captchaSessionExists, completeCaptcha } from './bot/bot.js';
+import { renderCaptchaPage } from './bot/captcha-page.js';
+
+function readJson(req) {
+  return new Promise((resolve) => {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body || '{}'));
+      } catch {
+        resolve({});
+      }
+    });
+  });
+}
 
 // grammY превращает входящий апдейт Telegram в вызов наших обработчиков.
 const handleUpdate = webhookCallback(bot, 'http', {
@@ -13,8 +28,32 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200).end('MAX↔Telegram bridge is running');
     return;
   }
+  const url = new URL(req.url || '/', 'http://localhost');
+  const path = url.pathname;
+
+  // Страница капчи: пользователь открывает ссылку из чата.
+  if (req.method === 'GET' && path === '/captcha') {
+    const sid = url.searchParams.get('sid') || '';
+    if (!captchaSessionExists(sid)) {
+      res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' });
+      res.end('<h1>Ссылка устарела. Сделайте /login в боте заново.</h1>');
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    res.end(renderCaptchaPage({ sid, sitekey: config.captchaSitekey }));
+    return;
+  }
+
+  // Приём токена капчи со страницы.
+  if (req.method === 'POST' && path === '/captcha/submit') {
+    const { sid, token } = await readJson(req);
+    const result = await completeCaptcha(sid, token);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(result));
+    return;
+  }
+
   // Единый путь вебхука и для Render (этот сервер), и для Vercel (api/webhook.js).
-  const path = (req.url || '').split('?')[0];
   if (req.method === 'POST' && path === '/api/webhook') {
     try {
       await handleUpdate(req, res);
