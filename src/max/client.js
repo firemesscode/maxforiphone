@@ -1,7 +1,21 @@
 import { EventEmitter } from 'node:events';
 import crypto from 'node:crypto';
 import WebSocket from 'ws';
+import { SocksProxyAgent } from 'socks-proxy-agent';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { config } from '../config.js';
+
+// Строит агент для прокси по строке вида socks5://host:port или http://host:port.
+function buildProxyAgent(url) {
+  if (!url) return null;
+  try {
+    if (url.startsWith('socks')) return new SocksProxyAgent(url);
+    return new HttpsProxyAgent(url);
+  } catch (err) {
+    console.error('[max] неверный MAX_PROXY:', err.message);
+    return null;
+  }
+}
 
 /**
  * MaxClient — тонкий адаптер над WebSocket-шлюзом мессенджера MAX.
@@ -44,13 +58,19 @@ export class MaxClient extends EventEmitter {
 
   connect() {
     return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(config.maxWsUrl, {
+      const opts = {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
           Origin: 'https://web.max.ru',
         },
-      });
+      };
+      // Прокси (например, российский) — чтобы MAX видел RU-IP и не требовал капчу.
+      // MAX_PROXY=socks5://user:pass@host:port или http://host:port
+      const agent = buildProxyAgent(process.env.MAX_PROXY);
+      if (agent) opts.agent = agent;
+
+      this.ws = new WebSocket(config.maxWsUrl, opts);
 
       this.ws.on('open', async () => {
         this.connected = true;
