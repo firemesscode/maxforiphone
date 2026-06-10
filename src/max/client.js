@@ -126,6 +126,7 @@ export class MaxClient extends EventEmitter {
       const seq = ++this.seq;
       const frame = { ver: 11, cmd: 0, seq, opcode, payload };
       this.pending.set(seq, { resolve, reject });
+      if (process.env.MAX_DEBUG) console.log('[max →]', JSON.stringify(frame));
       this.ws.send(JSON.stringify(frame));
 
       setTimeout(() => {
@@ -138,6 +139,7 @@ export class MaxClient extends EventEmitter {
   }
 
   _onMessage(raw) {
+    if (process.env.MAX_DEBUG) console.log('[max ←]', raw.toString());
     let frame;
     try {
       frame = JSON.parse(raw.toString());
@@ -151,7 +153,8 @@ export class MaxClient extends EventEmitter {
       this.pending.delete(frame.seq);
       if (frame.payload?.error) {
         if (frame.payload.error === 'login.token.invalid') this.emit('authNeeded');
-        reject(new Error(frame.payload.error));
+        const detail = frame.payload.message || frame.payload.localizedMessage || '';
+        reject(new Error(`${frame.payload.error}${detail ? ': ' + detail : ''}`));
       } else {
         resolve(frame.payload || {});
       }
