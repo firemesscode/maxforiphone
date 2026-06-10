@@ -76,7 +76,11 @@ export class MaxClient extends EventEmitter {
 
   /** Запросить SMS-код. Возвращает токен-черновик (temp_token) для подтверждения. */
   async requestCode(phone) {
-    const res = await this._request(OPCODES.REQUEST_CODE, { phone });
+    const res = await this._request(OPCODES.REQUEST_CODE, {
+      phone,
+      type: 'START_AUTH',
+      language: 'ru',
+    });
     return res.token; // временный токен, нужен на шаге confirmCode
   }
 
