@@ -1,8 +1,10 @@
-import { config, webhookPath } from '../src/config.js';
+import { config } from '../src/config.js';
 
-// Прописывает (или меняет) вебхук бота на наш публичный URL.
-// Запуск: npm run set-webhook
-const url = `${config.webhookUrl}${webhookPath}`;
+// Прописывает (или меняет) вебхук бота на адрес деплоя.
+// Локально:  npm run set-webhook
+// На Vercel: запускается один раз после деплоя (или вручную тем же скриптом),
+//            путь фиксированный — /api/webhook.
+const url = `${config.webhookUrl}/api/webhook`;
 
 const res = await fetch(`https://api.telegram.org/bot${config.botToken}/setWebhook`, {
   method: 'POST',

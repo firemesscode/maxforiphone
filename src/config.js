@@ -15,7 +15,12 @@ export const config = {
   botToken: required('BOT_TOKEN'),
   webhookUrl: required('WEBHOOK_URL').replace(/\/+$/, ''),
   port: Number(process.env.PORT || 8080),
-  webhookSecret: process.env.WEBHOOK_SECRET || crypto.randomBytes(16).toString('hex'),
+  // Должен быть одинаков и у работающей функции, и у скрипта set-webhook.
+  // Если не задан явно — детерминированно выводим из токена бота, чтобы на
+  // serverless (Vercel) он не менялся между холодными стартами.
+  webhookSecret:
+    process.env.WEBHOOK_SECRET ||
+    crypto.createHash('sha256').update(required('BOT_TOKEN')).digest('hex').slice(0, 32),
   maxWsUrl: process.env.MAX_WS_URL || 'wss://ws-api.oneme.ru/websocket',
   sessionsFile: process.env.SESSIONS_FILE || './data/sessions.json',
 };
