@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import crypto from 'node:crypto';
 import WebSocket from 'ws';
 import { config } from '../config.js';
 
@@ -34,10 +35,7 @@ export class MaxClient extends EventEmitter {
     super();
     this.token = token;
     // Стабильный идентификатор устройства; можно зафиксировать через MAX_DEVICE_ID.
-    this.deviceId =
-      deviceId ||
-      process.env.MAX_DEVICE_ID ||
-      'maxtg-' + Math.random().toString(36).slice(2, 14);
+    this.deviceId = deviceId || process.env.MAX_DEVICE_ID || crypto.randomUUID();
     this.ws = null;
     this.seq = 0;
     this.pending = new Map(); // seq -> { resolve, reject }
@@ -127,7 +125,7 @@ export class MaxClient extends EventEmitter {
         deviceName: 'Chrome',
         headerUserAgent:
           'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-        appVersion: '25.6.0',
+        appVersion: '25.9.15',
         screen: '1080x1920 1.0x',
         timezone: 'Europe/Moscow',
       },
