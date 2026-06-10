@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: maxforiphone
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: NODE_VERSION
+        value: 20
