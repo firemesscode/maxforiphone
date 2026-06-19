@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Türkiye Hava Durumu</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --acc:#38bdf8; --txt:#e2e8f0; --mut:#94a3b8; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:linear-gradient(160deg,#0f172a,#1e3a5f); color:var(--txt); min-height:100vh; }
+  .wrap { max-width:640px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:1.5rem; margin:0 0 16px; display:flex; align-items:center; gap:8px; }
+  .search { display:flex; gap:8px; margin-bottom:12px; }
+  input { flex:1; padding:12px 14px; border:none; border-radius:10px; font-size:1rem;
+    background:var(--card); color:var(--txt); outline:none; }
+  button { padding:12px 16px; border:none; border-radius:10px; background:var(--acc);
+    color:#04293a; font-weight:600; font-size:1rem; cursor:pointer; }
+  button:active { transform:scale(.97); }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+  .chip { padding:6px 12px; border-radius:999px; background:var(--card); color:var(--mut);
+    font-size:.85rem; cursor:pointer; border:1px solid transparent; }
+  .chip:hover { border-color:var(--acc); color:var(--txt); }
+  .card { background:var(--card); border-radius:16px; padding:20px; margin-bottom:16px; }
+  .now { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .temp { font-size:3rem; font-weight:700; line-height:1; }
+  .icon { font-size:3.5rem; }
+  .place { font-size:1.2rem; font-weight:600; }
+  .desc { color:var(--mut); }
+  .meta { display:flex; gap:20px; margin-top:14px; flex-wrap:wrap; font-size:.9rem; color:var(--mut); }
+  .meta b { color:var(--txt); font-weight:600; }
+  .days { display:grid; grid-template-columns:repeat(auto-fit,minmax(72px,1fr)); gap:8px; }
+  .day { background:#0f1d33; border-radius:12px; padding:10px 6px; text-align:center; }
+  .day .d { font-size:.8rem; color:var(--mut); }
+  .day .e { font-size:1.6rem; margin:4px 0; }
+  .day .t { font-size:.85rem; }
+  .day .t b { font-weight:600; }
+  .msg { color:var(--mut); text-align:center; padding:20px; }
+  footer { text-align:center; color:var(--mut); font-size:.8rem; margin-top:24px; }
+  a { color:var(--acc); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🌤️ Türkiye Hava Durumu</h1>
+  <form class="search" id="form">
+    <input id="q" placeholder="Şehir ara… (İstanbul, Antalya)" autocomplete="off">
+    <button type="submit">Ara</button>
+  </form>
+  <div class="chips" id="chips"></div>
+  <div id="out"><div class="msg">Bir şehir seçin veya arayın.</div></div>
+  <footer>Veri: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> · ücretsiz, anahtarsız</footer>
+</div>
+<script>
+const CITIES = [
+  ["İstanbul",41.0082,28.9784],["Ankara",39.9334,32.8597],["İzmir",38.4237,27.1428],
+  ["Antalya",36.8969,30.7133],["Bursa",40.1885,29.0610],["Adana",37.0000,35.3213],
+  ["Trabzon",41.0027,39.7168],["Gaziantep",37.0662,37.3833],["Konya",37.8716,32.4847],
+];
+const WMO = {
+  0:["Açık","☀️"],1:["Az bulutlu","🌤️"],2:["Parçalı bulutlu","⛅"],3:["Bulutlu","☁️"],
+  45:["Sisli","🌫️"],48:["Kırağılı sis","🌫️"],51:["Hafif çisenti","🌦️"],53:["Çisenti","🌦️"],
+  55:["Yoğun çisenti","🌧️"],61:["Hafif yağmur","🌦️"],63:["Yağmur","🌧️"],65:["Şiddetli yağmur","🌧️"],
+  71:["Hafif kar","🌨️"],73:["Kar","🌨️"],75:["Yoğun kar","❄️"],80:["Sağanak","🌦️"],
+  81:["Sağanak","🌧️"],82:["Şiddetli sağanak","⛈️"],95:["Gök gürültülü","⛈️"],96:["Dolulu fırtına","⛈️"],
+};
+const wmo = c => WMO[c] || ["—","🌡️"];
+const out = document.getElementById("out");
+const chips = document.getElementById("chips");
+
+CITIES.forEach(([name,lat,lon]) => {
+  const b = document.createElement("span");
+  b.className = "chip"; b.textContent = name;
+  b.onclick = () => show(name, lat, lon);
+  chips.appendChild(b);
+});
+
+document.getElementById("form").onsubmit = async e => {
+  e.preventDefault();
+  const q = document.getElementById("q").value.trim();
+  if (!q) return;
+  out.innerHTML = `<div class="msg">Aranıyor…</div>`;
+  try {
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=tr&countryCode=TR`);
+    const g = (await r.json()).results?.[0];
+    if (!g) return out.innerHTML = `<div class="msg">Şehir bulunamadı.</div>`;
+    show(g.name, g.latitude, g.longitude);
+  } catch { out.innerHTML = `<div class="msg">Bağlantı hatası.</div>`; }
+};
+
+async function show(name, lat, lon) {
+  out.innerHTML = `<div class="msg">Yükleniyor…</div>`;
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+      + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code`
+      + `&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5`;
+    const d = await (await fetch(u)).json();
+    const c = d.current, [cd, ci] = wmo(c.weather_code);
+    const days = d.daily.time.map((t, i) => {
+      const [, e] = wmo(d.daily.weather_code[i]);
+      const dn = new Date(t).toLocaleDateString("tr-TR", { weekday: "short" });
+      return `<div class="day"><div class="d">${dn}</div><div class="e">${e}</div>
+        <div class="t"><b>${Math.round(d.daily.temperature_2m_max[i])}°</b>
+        ${Math.round(d.daily.temperature_2m_min[i])}°</div></div>`;
+    }).join("");
+    out.innerHTML = `<div class="card">
+      <div class="now">
+        <div><div class="place">${name}</div><div class="desc">${cd}</div></div>
+        <div style="text-align:right"><span class="icon">${ci}</span></div>
+      </div>
+      <div class="now" style="margin-top:8px">
+        <div class="temp">${Math.round(c.temperature_2m)}°</div>
+        <div class="meta">
+          <div>Hissedilen <b>${Math.round(c.apparent_temperature)}°</b></div>
+          <div>Nem <b>${c.relative_humidity_2m}%</b></div>
+          <div>Rüzgar <b>${Math.round(c.wind_speed_10m)} km/s</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="days">${days}</div></div>`;
+  } catch { out.innerHTML = `<div class="msg">Veri alınamadı.</div>`; }
+}
+
+show(...CITIES[0]);
+</script>
+</body>
+</html>
